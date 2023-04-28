@@ -1,7 +1,9 @@
 import json
 import os
+import psutil
 from elasticsearch import Elasticsearch
 from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor
 
 
 def file_exists(dir_path, file_name):
@@ -9,6 +11,35 @@ def file_exists(dir_path, file_name):
         if f == file_name:
             return True
     return False
+
+
+def process_index(index):
+    if "co2" in index:
+        if file_exists("jsons", f"{index}.json"):
+            return
+        print(f"index: {index}")
+
+        s_time = "2m"
+        data = es.search(
+            index=index,
+            scroll=s_time,
+            body={"query": {"match_all": {}}},
+            size=1000,
+            request_timeout=150,
+        )
+
+        s_id = data["_scroll_id"]
+        s_size = data["hits"]["total"]["value"]
+        documents = data["hits"]["hits"]
+        while s_size > 0:
+            data = es.scroll(scroll_id=s_id, scroll=s_time, request_timeout=150)
+            s_id = data["_scroll_id"]
+            s_size = len(data["hits"]["hits"])
+            documents.extend(data["hits"]["hits"])
+
+        # Save the documents in a JSON file with the index name
+        with open(f"jsons/{index}.json", "w") as f:
+            json.dump(documents, f, ensure_ascii=False, indent=4)
 
 
 load_dotenv()
@@ -26,36 +57,13 @@ es = Elasticsearch(
 indices = es.cat.indices(v=True).strip().split("\n")
 index_list = [index.split()[2] for index in indices]
 
-# jsonsディレクトリが存在しない場合は作成する
+# Create the "jsons" directory if it doesn't exist
 if not os.path.exists("jsons"):
     os.mkdir("jsons")
 
-for index in index_list:
-    if "co2" in index:
-        if file_exists("jsons", f"{index}.json"):
-            continue
-        print(f"index: {index}")
+# Determine the maximum number of threads based on the CPU core count
+max_threads = psutil.cpu_count(logical=True)
 
-        s_time = "2m"
-        data = es.search(
-            index=index,
-            scroll=s_time,
-            body={"query": {"match_all": {}}},
-            size=1000,
-            request_timeout=150,
-        )
-
-        s_id = data["_scroll_id"]
-        s_size = data["hits"]["total"]["value"]  # 残りの検索対象の件数??
-        documents = data["hits"]["hits"]
-        while s_size > 0:
-            data = es.scroll(
-                scroll_id=s_id, scroll=s_time, request_timeout=150
-            )  # scroll: スクロール時の検索コンテキストを保持するための期間
-            s_id = data["_scroll_id"]
-            s_size = len(data["hits"]["hits"])
-            documents.extend(data["hits"]["hits"])
-
-        # 取得したドキュメントをインデックス名のJSONファイルに書き込む
-        with open(f"jsons/{index}.json", "w") as f:
-            json.dump(documents, f, ensure_ascii=False, indent=4)
+# Process the indices in parallel using a ThreadPoolExecutor
+with ThreadPoolExecutor(max_workers=max_threads) as executor:
+    executor.map(process_index, index_list)
