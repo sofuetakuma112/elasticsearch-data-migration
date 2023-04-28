@@ -3,6 +3,14 @@ import os
 from elasticsearch import Elasticsearch
 from dotenv import load_dotenv
 
+
+def file_exists(dir_path, file_name):
+    for f in os.listdir(dir_path):
+        if f == file_name:
+            return True
+    return False
+
+
 load_dotenv()
 
 es = Elasticsearch(
@@ -24,8 +32,10 @@ if not os.path.exists("jsons"):
 
 for index in index_list:
     if "co2" in index:
+        if file_exists("jsons", f"{index}.json"):
+            continue
         print(f"index: {index}")
-        
+
         s_time = "2m"
         data = es.search(
             index=index,
