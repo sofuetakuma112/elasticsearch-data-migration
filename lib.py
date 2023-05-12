@@ -19,7 +19,7 @@ def read_json_files(jsons_dir, exclude_files=[]):
     for filename_with_ext in json_filenames:
         if filename_with_ext in exclude_files:
             continue
-        
+
         filepath = os.path.join(jsons_dir, filename_with_ext)  # ファイルパスを作成する
         try:
             with open(filepath, "r") as f:
@@ -33,3 +33,22 @@ def read_json_files(jsons_dir, exclude_files=[]):
             raise e
 
     return all_json_data
+
+
+def dict_equal(dict1, dict2):
+    """
+    2つの辞書が完全に一致しているかどうかを調べる関数
+    """
+    # キーのリストをアルファベット順にソート
+    keys1 = sorted(dict1.keys())
+    keys2 = sorted(dict2.keys())
+
+    # ソートしたキーのリストを使用して、各項目が一致するかどうかを調べる
+    if keys1 != keys2:
+        return False
+
+    for key in keys1:
+        if dict1[key] != dict2[key]:
+            return False
+
+    return True

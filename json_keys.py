@@ -1,4 +1,5 @@
 import collections.abc
+from constants import JSON_DIR_FULL_PATH
 from lib import read_json_files
 import os
 import json
@@ -101,9 +102,9 @@ def get_json_files_keys(jsons_dir: str) -> List[Set[str]]:
 
 
 if __name__ == "__main__":
-    # get_json_files_keys("jsons")
+    # get_json_files_keys(JSON_DIR_FULL_PATH)
 
-    all_json_data = read_json_files("jsons", ["co2_el35.json"])
+    all_json_data = read_json_files(JSON_DIR_FULL_PATH, ["co2_el35.json"])
 
     numbers = set()
     for d in all_json_data:

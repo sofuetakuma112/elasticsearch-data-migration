@@ -1,9 +1,12 @@
 import json
 import os
+import sqlite3
 from typing import List, Dict
 from elasticsearch import Elasticsearch
+from constants import JSON_DIR_FULL_PATH
 from lib import read_json_files
 from datetime import datetime, timezone, timedelta
+import ijson
 
 
 def parse_jptime(jptime: str) -> datetime:
@@ -27,48 +30,137 @@ def convert_utc_to_jst(utctime_dt: datetime) -> datetime:
     return utctime_dt.replace(tzinfo=timezone.utc).astimezone(timezone(jst_offset))
 
 
-def remove_duplicate_data(data: List[Dict]) -> List[Dict]:
-    """
-    Remove duplicate entries from the data and add only unique data to a new list.
+# 読み込んだJSONデータを引数に実行する関数
+# JSON単位で実行される
+def remove_duplicate_data(directory) -> List[Dict]:
+    for file_name in os.listdir(directory):
+        if file_name.endswith(".json"):
+            if target_json_files is None:
+                target_json_files = os.listdir(directory)
 
-    :param data: original data
-    :return: list of unique data without duplicates
-    """
-    unique_set = set()
-    unique_data_dict = {}
+            if file_name in target_json_files:
+                file_path = os.path.join(directory, file_name)
 
-    for d in data:
-        jptime = d["_source"].get("JPtime")
-        utctime = d["_source"].get("utctime")
+                print(f"current processing {file_name}")
+                with open(file_path, "r") as f:
+                    generator = ijson.items(f, "item._source")
+                    for source in generator:
+                        jptime = source.get("JPtime")
+                        utctime = source.get("utctime")
+                        room_number = source.get("number")
 
-        if not (jptime or utctime):
-            continue
+                        temp = source.get("TEMP")
+                        rh = source.get("RH")
+                        ppm = source.get("PPM")
+                        temperature = source.get("Temperature")
 
-        if jptime:
-            dt = parse_jptime(jptime)
-        else:
-            utctime_dt = parse_utctime(utctime)
-            dt = convert_utc_to_jst(utctime_dt)
+                        if not (jptime or utctime):
+                            # jptime と utctime のどちらも存在しない
+                            continue
 
-        str_time = dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
-        key = (d["_source"]["number"].upper(), str_time)
+                        if room_number is None:
+                            # room_numberが存在しない
+                            continue
 
-        if key not in unique_set:
-            unique_set.add(key)
-            unique_data_dict[key] = d
-        else:
-            original_data = unique_data_dict[key]
-            original_field_count = len(original_data["_source"])
-            duplicate_field_count = len(d["_source"])
+                        room_number = source["number"].upper()
 
-            print(f"original_data: {original_data['_source']}")
-            print(f"duplicate_data: {d['_source']}")
+                        if jptime:
+                            dt = parse_jptime(jptime)
+                        else:
+                            utctime_dt = parse_utctime(utctime)
+                            dt = convert_utc_to_jst(utctime_dt)
 
-            if duplicate_field_count > original_field_count:
-                unique_data_dict[key] = d
-                print("重複データがオリジナルのデータと入れ替えられました")
+                        str_jp_dt = dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
 
-    return list(unique_data_dict.values())
+                        # TODO: SQLITEにINSERTする処理に変える
+
+                        # 複合主キーで検索
+                        search_query = (
+                            "SELECT * FROM my_table WHERE number = ? AND JPtime = ?"
+                        )
+                        search_params = (room_number, str_jp_dt)
+                        cursor.execute(search_query, search_params)
+
+                        # 検索結果の取得
+                        result = cursor.fetchone()
+
+                        column_mapping = {
+                            "number": "number",
+                            "JPtime": "JPtime",
+                            "TEMP": "TEMP",
+                            "utctime": "utctime",
+                            "RH": "RH",
+                            "ip": "ip",
+                            "PPM": "PPM",
+                            "Temperature": "Temperature",
+                            "data": "data",
+                            "index_name": "index_name",
+                            "ms": "ms",
+                        }
+
+                        # データの準備
+                        type_converted_data = {
+                            "number": room_number,
+                            "JPtime": str_jp_dt,
+                            "TEMP": temp if temp is None else float(temp),
+                            "RH": rh if rh is None else float(rh),
+                            "ip": source.get("ip"),
+                            "PPM": ppm if ppm is None else float(ppm),
+                            "Temperature": float(temperature),
+                            "data": source.get("data"),
+                            "index_name": source.get("index_name"),
+                            "ms": source.get("ms"),
+                        }
+
+                        # 重複がない場合にのみINSERT文を実行
+                        if result is None:
+                            # INSERT文の実行
+                            insert_query = "INSERT INTO my_table (number, JPtime, TEMP, utctime, RH, ip, PPM, Temperature, data, index_name, ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                            insert_params = (
+                                type_converted_data.get(column_mapping["number"]),
+                                type_converted_data.get(column_mapping["JPtime"]),
+                                type_converted_data.get(column_mapping["TEMP"]),
+                                type_converted_data.get(column_mapping["utctime"]),
+                                type_converted_data.get(column_mapping["RH"]),
+                                type_converted_data.get(column_mapping["ip"]),
+                                type_converted_data.get(column_mapping["PPM"]),
+                                type_converted_data.get(column_mapping["Temperature"]),
+                                type_converted_data.get(column_mapping["data"]),
+                                type_converted_data.get(column_mapping["index_name"]),
+                                type_converted_data.get(column_mapping["ms"]),
+                            )
+                            cursor.execute(insert_query, insert_params)
+                            print("Data inserted successfully.")
+                        else:
+                            # 重複データが見つかった場合
+                            # データベースの既存フィールドが NULL で、新データが NULL でない場合にのみ更新
+                            fields = [
+                                "TEMP",
+                                "utctime",
+                                "RH",
+                                "ip",
+                                "PPM",
+                                "Temperature",
+                                "data",
+                                "index_name",
+                                "ms",
+                            ]
+                            for field in fields:
+                                if (
+                                    result[field] is None
+                                    and source.get(field) is not None
+                                ):
+                                    update_query = f"UPDATE my_table SET {field} = ? WHERE number = ? AND JPtime = ?"
+                                    update_params = (
+                                        type_converted_data[field],
+                                        room_number,
+                                        str_jp_dt,
+                                    )
+                                    cursor.execute(update_query, update_params)
+                                    print(f"Updated field {field} for existing record.")
+
+                        # 変更をコミット
+                        conn.commit()
 
 
 def classify_json_data_by_year(json_data: List[Dict]) -> Dict[str, List[Dict]]:
@@ -99,9 +191,10 @@ def save_json_data_to_index(data: List[Dict], index_name: str):
     """
     # Elasticsearchの接続情報を設定する
     es = Elasticsearch(
-        [
+        hosts=[
             f"http://{os.getenv('TARGET_ELASTICSEARCH_HOST')}:{os.getenv('TARGET_ELASTICSEARCH_PORT')}"
         ],
+        scheme="http",
         http_auth=(
             os.getenv("TARGET_ELASTICSEARCH_USERNAME"),
             os.getenv("TARGET_ELASTICSEARCH_PASSWORD"),
@@ -134,12 +227,12 @@ def save_json_data_to_index(data: List[Dict], index_name: str):
 
 
 if __name__ == "__main__":
-    all_json_data = read_json_files("jsons", ["co2_el35.json"])
+    # SQLiteデータベースへの接続
+    conn = sqlite3.connect("example.db")
+    # カーソルを取得
+    cursor = conn.cursor()
 
-    removed_data = remove_duplicate_data(all_json_data)
-    print(
-        f"len(all_json_data) => len(removed_data): {len(all_json_data)} => {len(removed_data)}"
-    )
+    removed_data = remove_duplicate_data(JSON_DIR_FULL_PATH)
 
     # classified = classify_json_data_by_year(removed_data)
     # before_2023_data = classified["before_2023"]
@@ -147,3 +240,6 @@ if __name__ == "__main__":
 
     # save_json_data_to_index(before_2023_data, "2022_co2")
     # save_json_data_to_index(in_2023_data, "2023_co2")
+
+    # 接続を閉じる
+    conn.close()
