@@ -52,3 +52,13 @@ def dict_equal(dict1, dict2):
             return False
 
     return True
+
+
+def read_json_file_line_by_line(file_path):
+    with open(file_path, "r") as file:
+        for line in file:
+            # 1行ずつJSONとして読み込む
+            json_data = json.loads(line)
+
+            # JSONデータを返す
+            yield json_data

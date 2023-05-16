@@ -8,17 +8,6 @@ from tqdm import tqdm
 
 from constants import JSON_DIR_FULL_PATH
 
-load_dotenv()
-es = Elasticsearch(
-    [
-        f"http://{os.getenv('SOURCE_ELASTICSEARCH_HOST')}:{os.getenv('SOURCE_ELASTICSEARCH_PORT')}"
-    ],
-    basic_auth=(
-        os.getenv("SOURCE_ELASTICSEARCH_USERNAME"),
-        os.getenv("SOURCE_ELASTICSEARCH_PASSWORD"),
-    ),
-)
-
 
 def estimate_json_size(index_name: str) -> float:
     # インデックスの統計情報を取得
@@ -33,13 +22,6 @@ def estimate_json_size(index_name: str) -> float:
     return size_in_gb
 
 
-def file_exists(dir_path, file_name):
-    for f in os.listdir(dir_path):
-        if f == file_name:
-            return True
-    return False
-
-
 def process_index(index):
     json_file_names = list(
         map(
@@ -49,7 +31,6 @@ def process_index(index):
     )
     if index in json_file_names:
         return
-    print(f"now processing {index} ...")
 
     size_in_gb = estimate_json_size(index)
     print(f"{index}の推定サイズ: {size_in_gb} GB")
@@ -84,24 +65,24 @@ def process_index(index):
     print(f"{index}のダンプ終了")
 
 
-indices = es.cat.indices(v=True).strip().split("\n")
-index_list = [index.split()[2] for index in indices]
+if __name__ == "__main__":
+    load_dotenv()
+    es = Elasticsearch(
+        [
+            f"http://{os.getenv('SOURCE_ELASTICSEARCH_HOST')}:{os.getenv('SOURCE_ELASTICSEARCH_PORT')}"
+        ],
+        basic_auth=(
+            os.getenv("SOURCE_ELASTICSEARCH_USERNAME"),
+            os.getenv("SOURCE_ELASTICSEARCH_PASSWORD"),
+        ),
+    )
 
-# Create the "jsons" directory if it doesn't exist
-if not os.path.exists(JSON_DIR_FULL_PATH):
-    os.mkdir(JSON_DIR_FULL_PATH)
+    indices = es.cat.indices(v=True).strip().split("\n")
+    index_list = [index.split()[2] for index in indices]
 
-# Determine the maximum number of threads based on the CPU core count
-max_threads = psutil.cpu_count(logical=True)
+    if not os.path.exists(JSON_DIR_FULL_PATH):
+        os.mkdir(JSON_DIR_FULL_PATH)
 
-# 並行実行のためのスレッドプールを作成
-with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
-    # 各indexの処理を並行実行
-    futures = [
-        executor.submit(process_index, index) for index in index_list if "co2" in index
-    ]
-
-    # 完了したタスクの結果を取得
-    for future in concurrent.futures.as_completed(futures):
-        # エラーが発生した場合には例外を取得するなど、必要な処理を実装
-        result = future.result()
+    for index in index_list:
+        if "co2" in index:
+            process_index(index)

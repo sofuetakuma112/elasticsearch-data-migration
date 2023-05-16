@@ -4,7 +4,6 @@ import sqlite3
 from typing import List, Dict
 from elasticsearch import Elasticsearch
 from constants import JSON_DIR_FULL_PATH
-from lib import read_json_files
 from datetime import datetime, timezone, timedelta
 import ijson
 
