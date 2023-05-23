@@ -1,18 +1,11 @@
 import argparse
 import os
 import json
+import subprocess
 from constants import JSON_DIR_FULL_PATH
-import ijson
 from tqdm import tqdm
 
-from lib import read_json_file_line_by_line
-
-
-def get_json_file_line_count(file_path):
-    with open(file_path, "r") as file:
-        line_count = sum(1 for _ in file)
-    return line_count
-
+from lib import get_json_file_line_count, read_json_file_line_by_line
 
 def cache_valid_json_file(filename):
     cache_dir = "cache"
@@ -29,25 +22,47 @@ def is_valid_json_file_cached(filename):
 
 
 def check_json_files(json_files):
+    invalid_json_files = []
     if json_files is None:
         for filename in os.listdir(JSON_DIR_FULL_PATH):
             if filename.endswith(".json"):
                 if is_valid_json_file_cached(filename):
                     continue
-                check_json_file(JSON_DIR_FULL_PATH, filename)
+                has_error, error_indexes = check_json_file(JSON_DIR_FULL_PATH, filename)
+                if has_error:
+                    invalid_json_files.append(
+                        {
+                            "filename": filename,
+                            "error_line_indexes": list(
+                                map(lambda i: i + 1, error_indexes)
+                            ),
+                        }
+                    )
     else:
         for filename in json_files:
             if is_valid_json_file_cached(filename):
                 continue
-            check_json_file(JSON_DIR_FULL_PATH, filename)
+            has_error, error_indexes = check_json_file(JSON_DIR_FULL_PATH, filename)
+            if has_error:
+                invalid_json_files.append(
+                    {
+                        "filename": filename,
+                        "error_line_indexes": list(map(lambda i: i + 1, error_indexes)),
+                    }
+                )
+
+    return invalid_json_files
 
 
 def check_json_file(directory, filename):
+    has_error = False
+    error_indexes = []
+
     file_path = os.path.join(directory, filename)
     try:
-        total_lines = get_json_file_line_count(file_path)
-        progress_bar = tqdm(total=total_lines, desc=filename, unit="line")
-        for obj in read_json_file_line_by_line(file_path):
+        line_count = get_json_file_line_count(file_path)
+        progress_bar = tqdm(total=line_count, desc=filename, unit="line")
+        for index, obj in enumerate(read_json_file_line_by_line(file_path)):
             _ = obj
             progress_bar.update(1)
         progress_bar.close()
@@ -55,8 +70,14 @@ def check_json_file(directory, filename):
         cache_valid_json_file(filename)
     except ValueError as e:
         print(f"{filename}: Invalid JSON - {str(e)}")
+        has_error = True
+        error_indexes.append(index)
     except IOError as e:
         print(f"{filename}: I/O Error - {str(e)}")
+        has_error = True
+        error_indexes.append(index)
+
+    return has_error, error_indexes
 
 
 if __name__ == "__main__":
@@ -65,4 +86,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     json_files = args.json_files
-    check_json_files(json_files)
+    invalid_json_files = check_json_files(json_files)
+
+    print(f"invalid_json_files: {invalid_json_files}")
