@@ -149,69 +149,6 @@ def remove_duplicate_data(
         conn.commit()
 
 
-def classify_json_data_by_year(json_data: List[Dict]) -> Dict[str, List[Dict]]:
-    """
-    JSONデータを_source.JPtimeが2023より以前のデータと2023年のデータに分類する関数。
-
-    :param json_data: JSONデータのリスト
-    :return: 2023年以前のデータと2023年のデータに分類された辞書オブジェクト
-    """
-    data_before_2023 = []
-    data_in_2023 = []
-    for d in json_data:
-        jp_time_str = d["_source"]["JPtime"]
-        jp_time = datetime.strptime(jp_time_str, "%Y-%m-%dT%H:%M:%S.%f")
-        if jp_time.year < 2023:
-            data_before_2023.append(d)
-        else:
-            data_in_2023.append(d)
-    return {"before_2023": data_before_2023, "in_2023": data_in_2023}
-
-
-def save_json_data_to_index(data: List[Dict], index_name: str):
-    """
-    JSONデータを指定したindex名のインデックスに保存する関数。
-
-    :param data: JSONデータのリスト
-    :param index_name: 保存するindex名
-    """
-    # Elasticsearchの接続情報を設定する
-    es = Elasticsearch(
-        hosts=[
-            f"http://{os.getenv('TARGET_ELASTICSEARCH_HOST')}:{os.getenv('TARGET_ELASTICSEARCH_PORT')}"
-        ],
-        scheme="http",
-        http_auth=(
-            os.getenv("TARGET_ELASTICSEARCH_USERNAME"),
-            os.getenv("TARGET_ELASTICSEARCH_PASSWORD"),
-        ),
-    )
-
-    # ElasticsearchにJSONデータを保存する
-    for d in data:
-        body = json.dumps(d["_source"])
-        query = {
-            "query": {
-                "bool": {
-                    "must": [
-                        {"match": {"_source.number": d["_source"]["number"]}},
-                        {"match": {"_source.JPtime": d["_source"]["JPtime"]}},
-                    ]
-                }
-            }
-        }
-        search_res = es.search(index=index_name, body=query)
-        if search_res["hits"]["total"]["value"] == 0:
-            # 同じnumberとJPTimeの組み合わせは存在しない
-            res = es.index(index_name, body=body)
-            print(res)
-        else:
-            # 同じnumberとJPTimeの組み合わせが既に存在するので保存しない
-            print(
-                f"Data for {d['_source']['number']} with JPtime {d['_source']['JPtime']} already exists in the index."
-            )
-
-
 if __name__ == "__main__":
     conn, cursor = initialize_database(f"{SQLITE_DIR_FULL_PATH}/co2.db")
 
