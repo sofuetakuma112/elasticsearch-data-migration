@@ -14,22 +14,33 @@ def delete_all_documents():
             os.getenv("TARGET_ELASTICSEARCH_USERNAME"),
             os.getenv("TARGET_ELASTICSEARCH_PASSWORD"),
         ),
+        request_timeout=60 * 60 * 24 * 7,
     )
 
-    # 2022_co2インデックスのドキュメントを削除
-    # delete_query_2022 = {"query": {"match_all": {}}}
-    # es.delete_by_query(
-    #     index="2022_co2", body=delete_query_2022, request_timeout=60 * 60 * 24 * 7
-    # )
+    indices = ["2022_co2", "2023_co2"]
+    delete_query = {"query": {"match_all": {}}}
 
-    # 2023_co2インデックスのドキュメントを削除
-    delete_query_2023 = {"query": {"match_all": {}}}
-    print(delete_query_2023)
-    es.delete_by_query(
-        index="2023_co2", body=delete_query_2023, timeout=60 * 60 * 24 * 7
-    )
+    for index in indices:
+        # Check if the index exists
+        if es.indices.exists(index=index):
+            # If the index exists, delete all documents in the index
+            es.delete_by_query(
+                index=index, body=delete_query, request_timeout=60 * 60 * 24 * 7
+            )
+            es.indices.delete(index=index)
 
-    print("All documents deleted successfully.")
+            # インデックスの設定
+            index_settings = {
+                "settings": {
+                    "number_of_shards": 4,  # プライマリシャードの数
+                    "number_of_replicas": 1  # レプリカシャードの数
+                }
+            }
+            # インデックスの作成
+            es.indices.create(index=index, body=index_settings)
+            print(f"インデックス{index}を初期化")
+        else:
+            print(f"インデックス{index}が存在しないのでスキップ")
 
 
 if __name__ == "__main__":

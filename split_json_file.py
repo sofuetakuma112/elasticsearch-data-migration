@@ -1,7 +1,7 @@
 import json
 import os
 
-from lib import read_json_file_line_by_line
+from utils.lib import read_json_file_line_by_line
 
 
 def split_json_file(file_path, target_file_size):

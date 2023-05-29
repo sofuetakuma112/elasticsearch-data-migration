@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import concurrent
 from tqdm import tqdm
 
-from constants import JSON_DIR_FULL_PATH
+from utils.constants import JSON_DIR_FULL_PATH
 
 
 def estimate_json_size(index_name: str) -> float:

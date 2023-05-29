@@ -1,29 +1,12 @@
-import json
 import os
 import sqlite3
 from typing import List, Dict
-from elasticsearch import Elasticsearch
 from tqdm import tqdm
-from constants import JSON_DIR_FULL_PATH, SQLITE_DIR_FULL_PATH
+from utils.constants import JSON_DIR_FULL_PATH, SQLITE_DIR_FULL_PATH
 from datetime import datetime, timezone, timedelta
-from lib import read_json_file_line_by_line, get_json_file_line_count
-from type_convert import convert_to_float
-
-
-def parse_jptime(jptime: str) -> datetime:
-    try:
-        jptime_dt = datetime.strptime(jptime, "%Y-%m-%dT%H:%M:%S.%f")
-    except ValueError:
-        jptime_dt = datetime.strptime(jptime, "%Y-%m-%dT%H:%M:%S")
-    return jptime_dt
-
-
-def parse_utctime(utctime: str) -> datetime:
-    try:
-        utctime_dt = datetime.strptime(utctime, "%Y-%m-%dT%H:%M:%S%z")
-    except ValueError:
-        utctime_dt = datetime.strptime(utctime, "%Y-%m-%dT%H:%M:%S.%f")
-    return utctime_dt
+from utils.date import parse_datetime
+from utils.lib import read_json_file_line_by_line, get_json_file_line_count
+from utils.type_convert import convert_to_float
 
 
 def convert_utc_to_jst(utctime_dt: datetime) -> datetime:
@@ -107,9 +90,9 @@ def remove_duplicate_data(
             room_number = source["number"].upper()
 
             if jptime:
-                dt = parse_jptime(jptime)
+                dt = parse_datetime(jptime, "jst")
             else:
-                utctime_dt = parse_utctime(utctime)
+                utctime_dt = parse_datetime(utctime, "utc")
                 dt = convert_utc_to_jst(utctime_dt)
 
             str_jp_dt = dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
@@ -153,13 +136,6 @@ if __name__ == "__main__":
     conn, cursor = initialize_database(f"{SQLITE_DIR_FULL_PATH}/co2.db")
 
     removed_data = remove_duplicate_data(conn, cursor, JSON_DIR_FULL_PATH)
-
-    # classified = classify_json_data_by_year(removed_data)
-    # before_2023_data = classified["before_2023"]
-    # in_2023_data = classified["in_2023"]
-
-    # save_json_data_to_index(before_2023_data, "2022_co2")
-    # save_json_data_to_index(in_2023_data, "2023_co2")
 
     # 接続を閉じる
     conn.close()

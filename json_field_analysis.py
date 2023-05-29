@@ -4,7 +4,7 @@ import os
 from collections import defaultdict
 import ijson
 
-from constants import JSON_DIR_FULL_PATH
+from utils.constants import JSON_DIR_FULL_PATH
 
 
 def analyze_json_files(directory, target_json_files=None):

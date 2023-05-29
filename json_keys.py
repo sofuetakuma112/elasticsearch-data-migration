@@ -1,6 +1,6 @@
 import collections.abc
-from constants import JSON_DIR_FULL_PATH
-from lib import read_json_files
+from utils.constants import JSON_DIR_FULL_PATH
+from utils.lib import read_json_files
 import os
 import json
 from typing import List, Set

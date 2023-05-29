@@ -2,10 +2,10 @@ import argparse
 import os
 import json
 import subprocess
-from constants import JSON_DIR_FULL_PATH
+from utils.constants import JSON_DIR_FULL_PATH
 from tqdm import tqdm
 
-from lib import get_json_file_line_count, read_json_file_line_by_line
+from utils.lib import get_json_file_line_count, read_json_file_line_by_line
 
 def cache_valid_json_file(filename):
     cache_dir = "cache"

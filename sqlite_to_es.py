@@ -1,24 +1,27 @@
 import os
 import sqlite3
 import numpy as np
-from constants import SQLITE_DIR_FULL_PATH
-from datetime import datetime, timezone
+from utils.constants import SQLITE_DIR_FULL_PATH
 from elasticsearch import AsyncElasticsearch
 from elasticsearch.helpers import async_streaming_bulk, BulkIndexError
 import pandas as pd
 import sqlite3
 from tqdm import tqdm
 from dotenv import load_dotenv
-import pytz
 import asyncio
 import logging
 
+from utils.date import parse_datetime
+
 # ロギングの設定
-logging.basicConfig(filename='error.log', level=logging.ERROR)
+logging.basicConfig(filename="out/error.log", level=logging.ERROR)
+
 
 def filter_non_numeric_nan(doc):
     """
-    Filters out None values and NaN values from a document.
+    valueがNoneでなく、数値型でないか（not isinstance(value, (int, float))）、
+    もしくは数値型であるがNaNではない（not np.isnan(value)）場合に限り、
+    キーと値のペアが新しい辞書に含まれる
 
     :param doc: A dictionary where some values may be None or NaN.
     :return: A new dictionary where keys associated with None or NaN values have been removed.
@@ -26,7 +29,8 @@ def filter_non_numeric_nan(doc):
     return {
         key: value
         for key, value in doc.items()
-        if value is not None and (not isinstance(value, (int, float)) or not np.isnan(value))
+        if value is not None
+        and (not isinstance(value, (int, float)) or not np.isnan(value))
     }
 
 
@@ -46,30 +50,17 @@ async def generate_bulk_data(df):
             ms,
         ) = row
 
-        datetime_format_1 = "%Y-%m-%dT%H:%M:%S.%f"
-        datetime_format_2 = "%Y-%m-%dT%H:%M:%S"
-
         if jp_time:
-            try:
-                jp_time_parsed = datetime.strptime(jp_time, datetime_format_1)
-            except ValueError:
-                jp_time_parsed = datetime.strptime(jp_time, datetime_format_2)
-
-            jst = pytz.timezone("Asia/Tokyo")
-            jptime_jst = jst.localize(jp_time_parsed)
+            jptime_parsed = parse_datetime(jp_time, "jst")
         if utc_time:
-            try:
-                utctime_parsed = datetime.strptime(utc_time, datetime_format_1)
-            except ValueError:
-                utctime_parsed = datetime.strptime(utc_time, datetime_format_2)
-            utctime_utc = utctime_parsed.replace(tzinfo=timezone.utc)
+            utctime_parsed = parse_datetime(utc_time, "utc")
 
-        index_name = "2022_co2" if jp_time_parsed.year < 2023 else "2023_co2"
+        index_name = "2022_co2" if jptime_parsed.year < 2023 else "2023_co2"
         doc = {
             "number": number,
-            "JPtime": jptime_jst,
+            "JPtime": jptime_parsed,
             "TEMP": temp,
-            "utctime": utctime_utc,
+            "utctime": utctime_parsed,
             "RH": rh,
             "ip": ip,
             "PPM": ppm,
@@ -78,8 +69,6 @@ async def generate_bulk_data(df):
             "index_name": index_name,
             "ms": ms,
         }
-        # valueがNoneでなく、数値型でないか（not isinstance(value, (int, float))）、もしくは数値型であるがNaNではない（not np.isnan(value)）場合に限り、
-        # キーと値のペアが新しい辞書に含まれる
         doc = filter_non_numeric_nan(doc)
         yield {"_op_type": "create", "_index": index_name, "_source": doc}
 
@@ -102,7 +91,7 @@ async def main():
             os.getenv("TARGET_ELASTICSEARCH_USERNAME"),
             os.getenv("TARGET_ELASTICSEARCH_PASSWORD"),
         ),
-        request_timeout=60 * 60 * 24 * 7
+        request_timeout=60 * 60 * 24 * 7,
     )
 
     # SQLiteデータベースに接続
@@ -151,9 +140,6 @@ async def main():
     except BulkIndexError as bulk_error:
         # エラーはリスト形式
         logging.error(bulk_error.errors)
-
-    # for action in bulk_data:
-    #     es.create(index=action["_index"], body=action["_source"])
 
     # データベースとElasticsearchとの接続を閉じる
     conn.close()

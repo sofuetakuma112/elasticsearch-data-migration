@@ -2,7 +2,7 @@ import argparse
 import json
 import glob
 
-from constants import JSON_DIR_FULL_PATH
+from utils.constants import JSON_DIR_FULL_PATH
 
 
 def process_json_files(exclude_files):
