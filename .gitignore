@@ -2,3 +2,4 @@
 .env
 jsons/
 cache/
+out/
