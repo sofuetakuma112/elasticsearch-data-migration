@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from typing import List, Dict
+import numpy as np
 from tqdm import tqdm
 from utils.constants import JSON_DIR_FULL_PATH, SQLITE_DIR_FULL_PATH
 from datetime import datetime, timezone, timedelta
@@ -89,23 +90,42 @@ def remove_duplicate_data(
 
             room_number = source["number"].upper()
 
-            if jptime:
-                dt = parse_datetime(jptime, "jst")
-            else:
-                utctime_dt = parse_datetime(utctime, "utc")
-                dt = convert_utc_to_jst(utctime_dt)
 
-            str_jp_dt = dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
+            if utctime:
+                # utctimeをjstに変換して代用する
+                utctime_dt = parse_datetime(utctime, "utc")
+                jptime_dt = convert_utc_to_jst(utctime_dt)
+            if jptime:
+                # jptimeがある場合は、jptimeを優先的に使う
+                jptime_dt = parse_datetime(jptime, "jst")
+
+            jptime_str = jptime_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+            utctime_str = None
+            if utctime_dt:
+                utctime_str = utctime_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+            temp_float = convert_to_float(temp)
+            Temperature_float = convert_to_float(temperature)
+
+            temp_value = temp_float or Temperature_float
+
+            try:
+                if temp_value is not None and np.isnan(temp_value):
+                    print(f"temp_valueがNaN => temp: {temp}, temperature: {temperature}")
+            except TypeError:
+                print(f"temp_value: {temp_value}")
+                np.isnan(temp_value)
 
             type_converted_data = {
                 "number": room_number,
-                "JPtime": str_jp_dt,
-                "TEMP": convert_to_float(temp),
-                "utctime": utctime,
+                "JPtime": jptime_str,
+                "TEMP": temp_value,
+                "utctime": utctime_str,
                 "RH": convert_to_float(rh),
                 "ip": source.get("ip"),
                 "PPM": convert_to_float(ppm),
-                "Temperature": convert_to_float(temperature),
+                "Temperature": Temperature_float,
                 "data": source.get("data"),
                 "index_name": source.get("index_name"),
                 "ms": source.get("ms"),
