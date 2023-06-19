@@ -1,8 +1,14 @@
+import numpy as np
+
 def convert_to_float(value):
+    if value is None or value == "":
+        return None
+    
     try:
-        if value is None or value == "":
+        result = float(value)
+        if np.isnan(result):
             return None
         else:
-            return float(value)
+            return result
     except ValueError:
         return None

@@ -67,6 +67,18 @@ class TestParseDatetime(unittest.TestCase):
         result = parse_datetime(datetime_str, "utc")
         self.assertEqual(result, expected_datetime)
 
+        datetime_str = "2023-03-27T18:56:00.078045"
+        expected_datetime = datetime(
+            2023, 3, 27, 18, 56, 0, 78045, tzinfo=pytz.FixedOffset(540)
+        )
+        result = parse_datetime(datetime_str, "jst")
+        self.assertEqual(result, expected_datetime)
+
+        datetime_str = "2023-03-27T09:56:00.078045"
+        expected_datetime = datetime(2023, 3, 27, 9, 56, 0, 78045, tzinfo=timezone.utc)
+        result = parse_datetime(datetime_str, "utc")
+        self.assertEqual(result, expected_datetime)
+
     def test_parse_datetime_with_invalid_format(self):
         datetime_str = "2022-12-31 23:59:59"  # Invalid format
         with self.assertRaises(ValueError):

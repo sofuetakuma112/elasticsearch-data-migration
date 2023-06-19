@@ -17,6 +17,7 @@ from utils.date import parse_datetime
 logging.basicConfig(filename="out/error.log", level=logging.ERROR)
 
 
+# TemperatureがNaNになる可能性があるので、その際は弾く
 def filter_non_numeric_nan(doc):
     """
     valueがNoneでなく、数値型でないか（not isinstance(value, (int, float))）、
@@ -123,7 +124,6 @@ async def main():
     # Elasticsearchへのデータの追加
     bulk_data = generate_bulk_data(df)
 
-    # helpers.bulkメソッドでバルクインサートする
     try:
         # ドキュメントを複数（チャンク）に分けてバルクインサート
         async for ok, result in async_streaming_bulk(
@@ -136,7 +136,6 @@ async def main():
             # バルクインサートに失敗した場合
             if not ok:
                 logging.error(f"failed to {result} document {action}")
-    # 例外処理
     except BulkIndexError as bulk_error:
         # エラーはリスト形式
         logging.error(bulk_error.errors)

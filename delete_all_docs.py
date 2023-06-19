@@ -2,6 +2,18 @@ import os
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
 
+def create_index(es, index):
+    # インデックスの設定
+    index_settings = {
+        "settings": {
+            "number_of_shards": 4,  # プライマリシャードの数
+            "number_of_replicas": 1  # レプリカシャードの数
+        }
+    }
+    # インデックスの作成
+    es.indices.create(index=index, body=index_settings)
+    print(f"インデックス{index}を初期化")
+
 
 def delete_all_documents():
     # Elasticsearchの接続情報を設定する
@@ -29,18 +41,10 @@ def delete_all_documents():
             )
             es.indices.delete(index=index)
 
-            # インデックスの設定
-            index_settings = {
-                "settings": {
-                    "number_of_shards": 4,  # プライマリシャードの数
-                    "number_of_replicas": 1  # レプリカシャードの数
-                }
-            }
-            # インデックスの作成
-            es.indices.create(index=index, body=index_settings)
-            print(f"インデックス{index}を初期化")
+            create_index(es, index)
         else:
-            print(f"インデックス{index}が存在しないのでスキップ")
+            print(f"インデックス{index}が存在しないので作成のみ行う")
+            create_index(es, index)
 
 
 if __name__ == "__main__":
