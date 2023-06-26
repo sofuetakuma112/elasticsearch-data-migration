@@ -56,7 +56,8 @@ async def generate_bulk_data(df):
         if utc_time:
             utctime_parsed = parse_datetime(utc_time, "utc")
 
-        index_name = "2022_co2" if jptime_parsed.year < 2023 else "2023_co2"
+        # index_name = "2022_co2" if jptime_parsed.year < 2023 else "2023_co2"
+        index_name = "co2"
         doc = {
             "number": number,
             "JPtime": jptime_parsed,

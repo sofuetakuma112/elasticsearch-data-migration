@@ -1,39 +1,23 @@
+import argparse
 import json
 import os
-import psutil
 from elasticsearch import Elasticsearch
 from dotenv import load_dotenv
 import concurrent
 from tqdm import tqdm
 
-from utils.constants import JSON_DIR_FULL_PATH
-
-
-def estimate_json_size(index_name: str) -> float:
-    # インデックスの統計情報を取得
-    stats = es.indices.stats(index=index_name)
-
-    # インデックスのサイズを取得（バイト単位）
-    size_in_bytes = stats["indices"][index_name]["total"]["store"]["size_in_bytes"]
-
-    # サイズをGBに変換
-    size_in_gb = size_in_bytes / (1024**3)
-
-    return size_in_gb
+from utils.constants import OTHER_JSON_DIR_FULL_PATH
 
 
 def process_index(index):
     json_file_names = list(
         map(
             lambda file_name_with_ext: os.path.splitext(file_name_with_ext)[0],
-            os.listdir(JSON_DIR_FULL_PATH),
+            os.listdir(OTHER_JSON_DIR_FULL_PATH),
         )
     )
     if index in json_file_names:
         return
-
-    size_in_gb = estimate_json_size(index)
-    print(f"{index}の推定サイズ: {size_in_gb} GB")
 
     s_time = "2m"
     data = es.search(
@@ -49,7 +33,7 @@ def process_index(index):
 
     total_iterations = (s_size // 1000) + 1
 
-    with open(f"{JSON_DIR_FULL_PATH}/{index}.json", "w") as f:
+    with open(f"{OTHER_JSON_DIR_FULL_PATH}/{index}.json", "w") as f:
         with tqdm(total=total_iterations) as pbar:
             while s_size > 0:
                 documents = data["hits"]["hits"]
@@ -66,6 +50,13 @@ def process_index(index):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Dump Elasticsearch index to a JSON file.')
+    parser.add_argument('index', metavar='index', type=str,
+                        help='index name to dump')
+
+    args = parser.parse_args()
+    index_name = args.index
+
     load_dotenv()
     es = Elasticsearch(
         [
@@ -80,9 +71,9 @@ if __name__ == "__main__":
     indices = es.cat.indices(v=True).strip().split("\n")
     index_list = [index.split()[2] for index in indices]
 
-    if not os.path.exists(JSON_DIR_FULL_PATH):
-        os.mkdir(JSON_DIR_FULL_PATH)
+    if not os.path.exists(OTHER_JSON_DIR_FULL_PATH):
+        os.mkdir(OTHER_JSON_DIR_FULL_PATH)
 
     for index in index_list:
-        if "co2" in index:
-            process_index(index)
+        if index_name in index:
+            process_index(index_name)
