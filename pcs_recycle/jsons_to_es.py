@@ -43,11 +43,7 @@ async def main():
     docs = []
 
     with open(JSON_PATH, "r") as file:
-        json_data = json.load(file)
-        docs.extend(json_data)
-
-        print(f"len(json_data): {len(json_data)}")
-        print(f"len(docs): {len(docs)}")
+        docs = json.load(file)
 
     # Elasticsearchへのデータの追加
     bulk_data = generate_bulk_data(docs)
