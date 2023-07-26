@@ -1,9 +1,14 @@
+import argparse
 import os
 import sqlite3
 from typing import List, Dict
 import numpy as np
 from tqdm import tqdm
-from utils.constants import JSON_DIR_FULL_PATH, SQLITE_DIR_FULL_PATH
+from utils.constants import (
+    JSON_DIR_FULL_PATH,
+    OLD_ELASTICSEARCH_DATA_FULL_PATH,
+    SQLITE_DIR_FULL_PATH,
+)
 from datetime import datetime, timezone, timedelta
 from utils.date import parse_datetime
 from utils.lib import read_json_file_line_by_line, get_json_file_line_count
@@ -90,7 +95,6 @@ def remove_duplicate_data(
 
             room_number = source["number"].upper()
 
-
             if utctime:
                 # utctimeをjstに変換して代用する
                 utctime_dt = parse_datetime(utctime, "utc")
@@ -153,9 +157,31 @@ def remove_duplicate_data(
 
 
 if __name__ == "__main__":
-    conn, cursor = initialize_database(f"{SQLITE_DIR_FULL_PATH}/co2.db")
+    parser = argparse.ArgumentParser(
+        description="Modify the paths for the SQLite and JSON directory"
+    )
+    parser.add_argument(
+        "--sqlite_dir_name",
+        type=str,
+        required=True,
+        help="SQLite database directory name",
+    )
+    parser.add_argument(
+        "--json_dir_name", type=str, required=True, help="JSON directory name"
+    )
 
-    removed_data = remove_duplicate_data(conn, cursor, JSON_DIR_FULL_PATH)
+    args = parser.parse_args()
+
+    sqlite_dir_name = args.sqlite_dir_name
+    json_dir_name = args.json_dir_name
+
+    conn, cursor = initialize_database(
+        f"{OLD_ELASTICSEARCH_DATA_FULL_PATH}/{sqlite_dir_name}/co2.db"
+    )
+
+    removed_data = remove_duplicate_data(
+        conn, cursor, f"{OLD_ELASTICSEARCH_DATA_FULL_PATH}/{json_dir_name}"
+    )
 
     # 接続を閉じる
     conn.close()

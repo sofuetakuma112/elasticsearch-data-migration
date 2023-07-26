@@ -1,17 +1,108 @@
 import os
 import sqlite3
+
+from dotenv import load_dotenv
+
+from utils.constants import (
+    OLD_ELASTICSEARCH_DATA_FULL_PATH,
+    SQLITE_DIR_FULL_PATH_20230516,
+)
+
+from datetime import datetime
+
 import numpy as np
-from utils.constants import SQLITE_DIR_FULL_PATH
-from elasticsearch import AsyncElasticsearch
+from elasticsearch import AsyncElasticsearch, Elasticsearch
 from elasticsearch.helpers import async_streaming_bulk, BulkIndexError
 import pandas as pd
 import sqlite3
 from tqdm import tqdm
-from dotenv import load_dotenv
 import asyncio
 import logging
 
 from utils.date import parse_datetime
+
+
+def load_within_range_data():
+    begin_utctime = None
+    end_utctime = None
+
+    # 1. sqliteテーブルで最も新しいタイムスタンプを取得する
+    conn = sqlite3.connect(f"{SQLITE_DIR_FULL_PATH_20230516}/co2.db")
+    cursor = conn.cursor()
+
+    # SQL文を実行して最新のutctimeを取得
+    cursor.execute("SELECT MAX(utctime) FROM co2")
+    result = cursor.fetchone()
+
+    # 結果を表示
+    if result:
+        print("sqliteファイルの最新のutctime:", result[0])
+        begin_utctime = result[0]
+    else:
+        print("テーブルが空またはutctimeがNULLです")
+
+    # データベース接続を閉じる
+    conn.close()
+
+    # 2. co2_modbusのラズパイがアップロードしたデータの最も古いタイムスタンプを取得する
+
+    es_target = Elasticsearch(
+        [
+            f"http://{os.getenv('TARGET_ELASTICSEARCH_HOST')}:{os.getenv('TARGET_ELASTICSEARCH_PORT')}"
+        ],
+        basic_auth=(
+            os.getenv("TARGET_ELASTICSEARCH_USERNAME"),
+            os.getenv("TARGET_ELASTICSEARCH_PASSWORD"),
+        ),
+        request_timeout=60 * 60 * 24 * 7,
+    )
+
+    date_filter = datetime(2023, 6, 1, 0, 0, 0)
+
+    body = {
+        "query": {"range": {"utctime": {"gte": date_filter.isoformat()}}},
+        "sort": [{"utctime": {"order": "asc"}}],
+        "size": 1,
+    }
+
+    response = es_target.search(index="co2_modbus", body=body)
+
+    end_utctime = response["hits"]["hits"][0]["_source"]["utctime"]
+
+    print("移行後のElasticSearchのラズパイが上げた最古のutctime:", end_utctime)
+
+    # 3. begin_utctimeより未来でかつ、end_utctimeより過去のドキュメントを取得する
+
+    # .dbファイルのバス
+    db_file_path = f"{OLD_ELASTICSEARCH_DATA_FULL_PATH}/sqlite_after_20230501/co2.db"
+
+    conn = sqlite3.connect(db_file_path)
+    cursor = conn.cursor()
+
+    # utctimeがbegin_utctimeより未来でかつend_utctimeより過去のレコードを選択
+    cursor.execute(
+        f"SELECT * FROM co2 WHERE utctime > '{begin_utctime}' AND utctime < '{end_utctime}'"
+    )
+
+    result = cursor.fetchall()
+
+    print("begin_utctimeより未来でかつ、end_utctimeより過去のドキュメントの数:", len(result))
+
+    # # 最古のutctimeを取得
+    # cursor.execute(f"SELECT MIN(utctime) FROM co2 WHERE utctime > '{begin_utctime}' AND utctime < '{end_utctime}'")
+    # oldest_utctime = cursor.fetchone()
+    # print("最も古いutctime:", oldest_utctime[0] if oldest_utctime else None)
+
+    # # 最新のutctimeを取得
+    # cursor.execute(f"SELECT MAX(utctime) FROM co2 WHERE utctime > '{begin_utctime}' AND utctime < '{end_utctime}'")
+    # latest_utctime = cursor.fetchone()
+    # print("最も新しいutctime:", latest_utctime[0] if latest_utctime else None)
+
+    # データベース接続を閉じる
+    conn.close()
+
+    return result
+
 
 # ロギングの設定
 logging.basicConfig(filename="out/error.log", level=logging.ERROR)
@@ -56,7 +147,6 @@ async def generate_bulk_data(df):
         if utc_time:
             utctime_parsed = parse_datetime(utc_time, "utc")
 
-        # index_name = "2022_co2" if jptime_parsed.year < 2023 else "2023_co2"
         index_name = "co2_modbus"
         doc = {
             "number": number,
@@ -96,13 +186,7 @@ async def main():
         request_timeout=60 * 60 * 24 * 7,
     )
 
-    # SQLiteデータベースに接続
-    conn = sqlite3.connect(f"{SQLITE_DIR_FULL_PATH}/co2.db")
-    cursor = conn.cursor()
-
-    # co2テーブルのデータを取得
-    cursor.execute("SELECT * FROM co2")
-    data = cursor.fetchall()
+    data = load_within_range_data()
 
     # pandasのデータフレームに変換
     df = pd.DataFrame(
@@ -141,12 +225,12 @@ async def main():
         # エラーはリスト形式
         logging.error(bulk_error.errors)
 
-    # データベースとElasticsearchとの接続を閉じる
-    conn.close()
     await es.close()
 
 
 if __name__ == "__main__":
+    load_dotenv()
+
     # イベントループを取得
     loop = asyncio.get_event_loop()
     # 並列に実行して終るまで待つ
