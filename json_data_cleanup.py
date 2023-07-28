@@ -5,9 +5,7 @@ from typing import List, Dict
 import numpy as np
 from tqdm import tqdm
 from utils.constants import (
-    JSON_DIR_FULL_PATH,
     OLD_ELASTICSEARCH_DATA_FULL_PATH,
-    SQLITE_DIR_FULL_PATH,
 )
 from datetime import datetime, timezone, timedelta
 from utils.date import parse_datetime
