@@ -33,7 +33,7 @@ def insert_json_from_directory(directory):
     for filename in tqdm(json_files, desc="Processing JSON files"):
         if filename.endswith('.json'):
             # JSONファイル名 (拡張子を除く) をインデックス名として使用
-            index_name = f"133.71.201.197_{filename[:-5]}"
+            index_name = f"{filename[:-5]}"
             print(f"index_name: {index_name}")
             # ファイルからデータを読み込む
             data = list(read_json_file_line_by_line(os.path.join(directory, filename)))
