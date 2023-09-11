@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 非同期Elasticsearchクライアントのインスタンスを作成
-async_es = es = AsyncElasticsearch(
+async_es = AsyncElasticsearch(
     [
         f"http://{os.getenv('TARGET_ELASTICSEARCH_HOST')}:{os.getenv('TARGET_ELASTICSEARCH_PORT')}"
     ],
