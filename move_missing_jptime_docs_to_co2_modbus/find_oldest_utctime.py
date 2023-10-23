@@ -1,4 +1,4 @@
-from utils.lib import read_json_file_line_by_line, get_json_file_line_count
+from util import read_json_file_line_by_line, get_json_file_line_count
 import os
 from tqdm import tqdm
 
