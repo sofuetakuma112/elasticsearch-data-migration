@@ -1,3 +1,6 @@
+# 修論の3.5節で使用したプログラム
+# 移行元のElasticsearchのCO2データをエクスポートしている
+
 source .env
 
 multielasticdump \

@@ -1,3 +1,6 @@
+# 修論の3.6節で使用したプログラム
+# 移行元のElasticsearchから2023/05/01以降にインサートされたCO2データのみをエクスポートしている
+
 source .env
 
 multielasticdump \

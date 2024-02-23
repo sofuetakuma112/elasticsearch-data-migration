@@ -1,3 +1,6 @@
+# 修論の3.8節で使用したプログラム
+# LEAFの運行日誌データをエクスポートしている
+
 source .env
 
 multielasticdump \

@@ -1,3 +1,6 @@
+# 修論の3.8節で使用したプログラム
+# multidump_leaf.shによってエクスポートされたLEAFの運行日誌データを、移行先のElasticsearchへインサートしている
+
 import json
 import os
 from elasticsearch import Elasticsearch

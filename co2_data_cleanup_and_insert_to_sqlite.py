@@ -1,3 +1,6 @@
+# 修論の3.5節で使用したプログラム
+# multidump.shによってエクスポートされたCO2データを、SQLiteを使って重複削除して集約している
+
 import argparse
 import os
 import sqlite3

@@ -1,3 +1,6 @@
+# 修論の3.5節で使用したプログラム
+# SQLiteにインサートした重複削除済みのデータを読み出して、移行先のElasticsearchクラスタへバルクインサートしている
+
 import os
 import sqlite3
 import numpy as np

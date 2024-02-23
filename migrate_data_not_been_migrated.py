@@ -1,3 +1,5 @@
+# 修論の3.6節で使用したプログラム
+
 import os
 import sqlite3
 
@@ -26,7 +28,7 @@ def load_within_range_data():
     begin_utctime = None
     end_utctime = None
 
-    # 1. sqliteテーブルで最も新しいタイムスタンプを取得する
+    # 1. sqliteテーブルで最も新しいutctimeを取得する
     conn = sqlite3.connect(f"{SQLITE_DIR_FULL_PATH_20230516}/co2.db")
     cursor = conn.cursor()
 
@@ -41,11 +43,9 @@ def load_within_range_data():
     else:
         print("テーブルが空またはutctimeがNULLです")
 
-    # データベース接続を閉じる
     conn.close()
 
-    # 2. co2_modbusのラズパイがアップロードしたデータの最も古いタイムスタンプを取得する
-
+    # 2. co2_modbusに向けてラズパイがアップロードしたCO2データの中で、最も古いutctimeを取得する
     es_target = Elasticsearch(
         [
             f"http://{os.getenv('TARGET_ELASTICSEARCH_HOST')}:{os.getenv('TARGET_ELASTICSEARCH_PORT')}"
@@ -57,6 +57,7 @@ def load_within_range_data():
         request_timeout=60 * 60 * 24 * 7,
     )
 
+    # co2_modbusに向けてラズパイがアップロードし始めたのは2023年7月からなので、取得範囲を2023年6月以降のデータに絞る
     date_filter = datetime(2023, 6, 1, 0, 0, 0)
 
     body = {
@@ -69,7 +70,7 @@ def load_within_range_data():
 
     end_utctime = response["hits"]["hits"][0]["_source"]["utctime"]
 
-    print("移行後のElasticSearchのラズパイが上げた最古のutctime:", end_utctime)
+    print("移行後のElasticSearchに向けてラズパイがインサートしたCO2データの内、最古のutctime:", end_utctime)
 
     # 3. begin_utctimeより未来でかつ、end_utctimeより過去のドキュメントを取得する
 
@@ -87,16 +88,6 @@ def load_within_range_data():
     result = cursor.fetchall()
 
     print("begin_utctimeより未来でかつ、end_utctimeより過去のドキュメントの数:", len(result))
-
-    # # 最古のutctimeを取得
-    # cursor.execute(f"SELECT MIN(utctime) FROM co2 WHERE utctime > '{begin_utctime}' AND utctime < '{end_utctime}'")
-    # oldest_utctime = cursor.fetchone()
-    # print("最も古いutctime:", oldest_utctime[0] if oldest_utctime else None)
-
-    # # 最新のutctimeを取得
-    # cursor.execute(f"SELECT MAX(utctime) FROM co2 WHERE utctime > '{begin_utctime}' AND utctime < '{end_utctime}'")
-    # latest_utctime = cursor.fetchone()
-    # print("最も新しいutctime:", latest_utctime[0] if latest_utctime else None)
 
     # データベース接続を閉じる
     conn.close()
